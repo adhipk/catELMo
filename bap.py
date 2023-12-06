@@ -56,55 +56,57 @@ os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 
 
 def get_inputs(embedding_type):
+    # data_dir = "/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs"
+    data_dir = 'datasets/embeddings'
     if embedding_type == 'catELMo':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/catELMo_combined.pkl")
+        dat = pd.read_pickle(f"{data_dir}/catELMo_combined.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True)     
     elif embedding_type == 'blosum62':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/BLOSUM62.pkl")
+        dat = pd.read_pickle(f"{data_dir}/BLOSUM62.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True)
 
     elif embedding_type == 'blosum62_22_24':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/BLOSUM62_20_22.pkl")
+        dat = pd.read_pickle(f"{data_dir}/BLOSUM62_20_22.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True)
 
     elif embedding_type == 'SeqVec':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/SeqVec.pkl")
+        dat = pd.read_pickle(f"{data_dir}/SeqVec.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
     elif embedding_type == 'ProtBert':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/ProtBert.pkl")
+        dat = pd.read_pickle(f"{data_dir}/ProtBert.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
     elif embedding_type == 'catBert':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/catBert.pkl")
+        dat = pd.read_pickle(f"{data_dir}/catBert.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
     elif embedding_type == 'Doc2Vec':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/Doc2Vec.pkl")
+        dat = pd.read_pickle(f"{data_dir}/Doc2Vec.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
     elif embedding_type == 'catELMo_finetuned':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/catELMo_finetuned.pkl")
+        dat = pd.read_pickle(f"{data_dir}/catELMo_finetuned.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True)  
 
     elif embedding_type == 'catBert_768_12_layers_mlm_nsp':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/Small_Bert_mlm_nsp.pkl")
+        dat = pd.read_pickle(f"{data_dir}/Small_Bert_mlm_nsp.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
 
     elif embedding_type == 'catBert_768_12_layers_mlm':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/Small_Bert_mlm.pkl")
+        dat = pd.read_pickle(f"{data_dir}/Small_Bert_mlm.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
 
     elif embedding_type == 'TCRbert':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/TCRBert_mlm_12_layers.pkl")
+        dat = pd.read_pickle(f"{data_dir}/TCRBert_mlm_12_layers.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
 
     elif embedding_type == 'catBert_768_2_layers_mlm':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/Small_Bert_mlm_2_layers.pkl")
+        dat = pd.read_pickle(f"{data_dir}/Small_Bert_mlm_2_layers.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
 
     elif embedding_type == 'catELMo_4_layers_1024':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/catELMo_4_layers_1024.pkl")
+        dat = pd.read_pickle(f"{data_dir}/catELMo_4_layers_1024.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
 
     elif embedding_type == 'catELMo_12_layers_1024':
-        dat = pd.read_pickle("/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs/Small_Bert_mlm_2_layers.pkl")
+        dat = pd.read_pickle(f"{data_dir}/Small_Bert_mlm_2_layers.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True) 
 
         
@@ -203,7 +205,7 @@ def load_data_split(dat,split_type, seed):
     return  X1_train, X2_train, y_train, X1_test, X2_test, y_test, testData, trainData
 
 # TCRConV Model
-def create_cnn3ab_model(input_a,input_b, output_size=2048, filters=[120, 100, 80, 60], kernel_sizes=[5, 9, 15, 21, 3], dos=[0.1, 0.2], pool='max'):
+def create_cnn3ab_model(input_a,input_b, filters=[120, 100, 80, 60], kernel_sizes=[5, 9, 15, 21, 3], dos=[0.1, 0.2], pool='max'):
 
     # CNN A part
     cnn1a = Conv1D(filters[0], kernel_sizes[0], padding='same', activation='relu')(input_a)
@@ -244,7 +246,7 @@ def create_cnn3ab_model(input_a,input_b, output_size=2048, filters=[120, 100, 80
     # Combined part
     merged = concatenate([cnn5a, dense_ia, cnn5b, dense_ib], axis=-1)
     merged = Dropout(dos[1])(merged)
-    output_layer = Dense(output_size, activation='sigmoid')(merged)
+    output_layer = Dense(1, activation='sigmoid')(merged)
 
     model = Model(inputs=[input_a, input_b], outputs=output_layer)
     model.compile(optimizer='adam', loss='binary_crossentropy')
