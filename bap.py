@@ -4,32 +4,50 @@ Part of catELMo
 See LICENSE-CC-BY-NC-ND for licensing.
 '''
 
+import argparse
+import os
 import sys
 import time
-import os
-import argparse
 import warnings
+
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import tensorflow as tf
-from numpy import mean, std
-from tensorflow import keras
-from tensorflow.math import subtract
-
-from keras.models import Sequential
-from keras.layers import Dense, Dropout
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import RepeatedKFold, train_test_split
-from sklearn.metrics import precision_recall_fscore_support,roc_auc_score, precision_score, recall_score, f1_score
 from keras.callbacks import EarlyStopping
-from keras.layers import Input, Flatten, Dense, Dropout, LeakyReLU
-from keras.models import Model
+from keras.layers import Dense, Dropout, Flatten, Input, LeakyReLU
 from keras.layers.merge import concatenate
-from tensorflow.keras.layers import (
-    BatchNormalization, SeparableConv2D, MaxPooling2D, Activation, Flatten, Dropout, Dense, LayerNormalization
+from keras.models import Model, Sequential
+from numpy import mean, std
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_recall_fscore_support,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
-
+from sklearn.model_selection import RepeatedKFold, train_test_split
+from tensorflow import keras
+from tensorflow.keras.layers import (
+    Activation,
+    BatchNormalization,
+    Concatenate,
+    Conv1D,
+    Dense,
+    Dropout,
+    Flatten,
+    GlobalAveragePooling1D,
+    Input,
+    LayerNormalization,
+    MaxPooling2D,
+    ReLU,
+    GlobalMaxPooling1D,
+    SeparableConv2D,
+    MaxPooling1D
+)
+from tensorflow.keras.models import Model
+from tensorflow.math import subtract
+from tqdm import tqdm
 
 warnings.filterwarnings('ignore')
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -184,12 +202,57 @@ def load_data_split(dat,split_type, seed):
     X1_train, X2_train, y_train = np.array(X1_train_list), np.array(X2_train_list), np.array(y_train_list)
     return  X1_train, X2_train, y_train, X1_test, X2_test, y_test, testData, trainData
 
+# TCRConV Model
+def create_cnn3ab_model(input_a,input_b, output_size=2048, filters=[120, 100, 80, 60], kernel_sizes=[5, 9, 15, 21, 3], dos=[0.1, 0.2], pool='max'):
 
-def train_(embedding_name,X1_train, X2_train, y_train, X1_test, X2_test, y_test):
-    # define two sets of inputs
-    inputA = Input(shape=(len(X1_train[0]),))
-    inputB = Input(shape=(len(X2_train[0]),))
+    # CNN A part
+    cnn1a = Conv1D(filters[0], kernel_sizes[0], padding='same', activation='relu')(input_a)
+    cnn2a = Conv1D(filters[1], kernel_sizes[1], padding='same', activation='relu')(input_a)
+    cnn3a = Conv1D(filters[2], kernel_sizes[2], padding='same', activation='relu')(input_a)
+    cnn4a = Conv1D(filters[3], kernel_sizes[3], padding='same', activation='relu')(input_a)
 
+    merged_cnn_a = concatenate([cnn1a, cnn2a, cnn3a, cnn4a], axis=-1)
+    merged_cnn_a = BatchNormalization()(merged_cnn_a)
+    merged_cnn_a = Dropout(dos[0])(merged_cnn_a)
+
+    cnn5a = Conv1D(100, kernel_sizes[4], padding='same', activation='relu')(merged_cnn_a)
+    cnn5a = BatchNormalization()(cnn5a)
+    cnn5a = MaxPooling1D(pool_size=2)(cnn5a)
+    cnn5a = Flatten()(cnn5a)
+
+    # Parallel Linear Neural Network (LNN) A part
+    dense_ia = Dense(256, activation='relu')(Flatten()(input_a))
+
+    # CNN B part
+    cnn1b = Conv1D(filters[0], kernel_sizes[0], padding='same', activation='relu')(input_b)
+    cnn2b = Conv1D(filters[1], kernel_sizes[1], padding='same', activation='relu')(input_b)
+    cnn3b = Conv1D(filters[2], kernel_sizes[2], padding='same', activation='relu')(input_b)
+    cnn4b = Conv1D(filters[3], kernel_sizes[3], padding='same', activation='relu')(input_b)
+
+    merged_cnn_b = concatenate([cnn1b, cnn2b, cnn3b, cnn4b], axis=-1)
+    merged_cnn_b = BatchNormalization()(merged_cnn_b)
+    merged_cnn_b = Dropout(dos[0])(merged_cnn_b)
+
+    cnn5b = Conv1D(100, kernel_sizes[4], padding='same', activation='relu')(merged_cnn_b)
+    cnn5b = BatchNormalization()(cnn5b)
+    cnn5b = MaxPooling1D(pool_size=2)(cnn5b)
+    cnn5b = Flatten()(cnn5b)
+
+    # Parallel Linear Neural Network (LNN) B part
+    dense_ib = Dense(256, activation='relu')(Flatten()(input_b))
+
+    # Combined part
+    merged = concatenate([cnn5a, dense_ia, cnn5b, dense_ib], axis=-1)
+    merged = Dropout(dos[1])(merged)
+    output_layer = Dense(output_size, activation='sigmoid')(merged)
+
+    model = Model(inputs=[input_a, input_b], outputs=output_layer)
+    model.compile(optimizer='adam', loss='binary_crossentropy')
+
+    return model
+
+def catelmo_model(inputA,inputB):
+    
     x = Dense(2048,kernel_initializer = 'he_uniform')(inputA)
     x = BatchNormalization()(x)
     x = Dropout(0.3)(x)
@@ -212,9 +275,20 @@ def train_(embedding_name,X1_train, X2_train, y_train, X1_test, X2_test, y_test)
     model = Model(inputs=[x.input, y.input], outputs=z)
     model.compile(loss = 'binary_crossentropy', optimizer = 'adam')
     model.summary()
+    return model
     
+def train_(embedding_name,X1_train, X2_train, y_train, X1_test, X2_test, y_test,useCNN=False):
+    # define two sets of inputs
+    inputA = Input(shape=(len(X1_train[0]),))
+    inputB = Input(shape=(len(X2_train[0]),))
+    if useCNN:
+        model = create_cnn3ab_model(inputA,inputB)
+        model_name = 'TCRConv'
+    else:
+        model = catelmo_model(inputA,inputB)
+        model_name = 'catELMo_4_layers_1024'
     ## model fit
-    checkpoint_filepath = 'models/catELMo_4_layers_1024/' + embedding_name +  '.hdf5'
+    checkpoint_filepath = f'models/{model_name}/' + embedding_name +  '.hdf5'
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_filepath,
                                                                     save_weights_only=True,
                                                                     monitor='val_loss',
@@ -223,7 +297,7 @@ def train_(embedding_name,X1_train, X2_train, y_train, X1_test, X2_test, y_test)
     
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience = 30)
     model.fit([X1_train,X2_train], y_train, verbose=0, validation_split=0.20, epochs=200, batch_size = 32, callbacks=[es, model_checkpoint_callback])
-#     model.save('models/' + embedding_name + '.hdf5')
+    # model.save('models/' + model_name + embedding_name + '.hdf5')
     yhat = model.predict([X1_test, X2_test])
     
     print('================Performance========================')
