@@ -327,13 +327,13 @@ def train_(embedding_name,X1_train, X2_train, y_train, X1_test, X2_test, y_test,
     print('f1micro is '  + str(f1micro))
 
     
-def main(embedding, split,fraction,seed, gpu):
+def main(embedding, split,fraction,seed, gpu,use_cnn):
     os.environ["CUDA_VISIBLE_DEVICES"]=gpu
     dat = get_inputs(embedding)
     tr_dat = dat
     tr_dat = dat.sample(frac=fraction, replace=True, random_state=seed).reset_index(drop=True) # comment this out if no fraction used
     X1_train, X2_train, y_train, X1_test, X2_test, y_test, testData, trainData = load_data_split(tr_dat,split, seed)
-    train_(embedding + '_' + split + '_seed_' + str(seed) + '_fraction_' + str(fraction), X1_train, X2_train, y_train, X1_test, X2_test, y_test)
+    train_(embedding + '_' + split + '_seed_' + str(seed) + '_fraction_' + str(fraction), X1_train, X2_train, y_train, X1_test, X2_test, y_test,useCNN=use_cnn)
 
 
 
@@ -344,5 +344,6 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=str)
     parser.add_argument('--fraction', type=float, default=1.0) 
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--use_cnn',action='store_true', default=False)
     args = parser.parse_args()
-    main(args.embedding, args.split, args.fraction, args.seed, args.gpu)
+    main(args.embedding, args.split, args.fraction, args.seed, args.gpu.args.use_cnn)
