@@ -14,8 +14,24 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from keras.callbacks import EarlyStopping
-from keras.layers import Dense, Dropout, Flatten, Input, LeakyReLU
-from keras.layers.merge import concatenate
+from keras.layers import (
+    Activation,
+    BatchNormalization,
+    Concatenate,
+    Conv1D,
+    Dense,
+    Dropout,
+    Flatten,
+    GlobalAveragePooling1D,
+    GlobalMaxPooling1D,
+    Input,
+    LayerNormalization,
+    LeakyReLU,
+    MaxPooling1D,
+    MaxPooling2D,
+    ReLU,
+    SeparableConv2D,
+)
 from keras.models import Model, Sequential
 from numpy import mean, std
 from sklearn.metrics import (
@@ -27,25 +43,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import RepeatedKFold, train_test_split
-from tensorflow import keras
-from tensorflow.keras.layers import (
-    Activation,
-    BatchNormalization,
-    Concatenate,
-    Conv1D,
-    Dense,
-    Dropout,
-    Flatten,
-    GlobalAveragePooling1D,
-    Input,
-    LayerNormalization,
-    MaxPooling2D,
-    ReLU,
-    GlobalMaxPooling1D,
-    SeparableConv2D,
-    MaxPooling1D
-)
-from tensorflow.keras.models import Model
+
 from tensorflow.math import subtract
 from tqdm import tqdm
 
@@ -59,7 +57,7 @@ def get_inputs(embedding_type):
     # data_dir = "/mnt/disk07/user/pzhang84/data/tcr_repertoires_healthy_samples/combined_dataset_repTCRs"
     data_dir = 'datasets/embeddings'
     if embedding_type == 'catELMo':
-        dat = pd.read_pickle(f"{data_dir}/catELMo_combined.pkl")
+        dat = pd.read_pickle(f"{data_dir}/catelmo.pkl")
 #         dat = dat.sample(frac=1).reset_index(drop=True)     
     elif embedding_type == 'blosum62':
         dat = pd.read_pickle(f"{data_dir}/BLOSUM62.pkl")
@@ -206,55 +204,63 @@ def load_data_split(dat,split_type, seed):
 
 # TCRConV Model
 def create_cnn3ab_model(input_a,input_b, filters=[120, 100, 80, 60], kernel_sizes=[5, 9, 15, 21, 3], dos=[0.1, 0.2], pool='max'):
+    
+    # Define ReLU activation
+    relu = ReLU()
+
+    # Pooling layer
+    pool_layer = GlobalAveragePooling1D()
 
     # CNN A part
-    cnn1a = Conv1D(filters[0], kernel_sizes[0], padding='same', activation='relu')(input_a)
-    cnn2a = Conv1D(filters[1], kernel_sizes[1], padding='same', activation='relu')(input_a)
-    cnn3a = Conv1D(filters[2], kernel_sizes[2], padding='same', activation='relu')(input_a)
-    cnn4a = Conv1D(filters[3], kernel_sizes[3], padding='same', activation='relu')(input_a)
+    cnn1a = Conv1D(filters[0], kernel_sizes[0], padding='same')(input_a)
+    cnn2a = Conv1D(filters[1], kernel_sizes[1], padding='same')(input_a)
+    cnn3a = Conv1D(filters[2], kernel_sizes[2], padding='same')(input_a)
+    cnn4a = Conv1D(filters[3], kernel_sizes[3], padding='same')(input_a)
 
-    merged_cnn_a = concatenate([cnn1a, cnn2a, cnn3a, cnn4a], axis=-1)
+    merged_cnn_a = Concatenate(axis=-1)([cnn1a, cnn2a, cnn3a, cnn4a])
     merged_cnn_a = BatchNormalization()(merged_cnn_a)
+    merged_cnn_a = relu(merged_cnn_a)
     merged_cnn_a = Dropout(dos[0])(merged_cnn_a)
-
-    cnn5a = Conv1D(100, kernel_sizes[4], padding='same', activation='relu')(merged_cnn_a)
+    cnn5a = Conv1D(100, kernel_sizes[4], padding='same')(merged_cnn_a)
     cnn5a = BatchNormalization()(cnn5a)
-    cnn5a = MaxPooling1D(pool_size=2)(cnn5a)
-    cnn5a = Flatten()(cnn5a)
+    cnn5a = relu(cnn5a)
+    pooled_cnn5a = pool_layer(cnn5a)
 
-    # Parallel Linear Neural Network (LNN) A part
-    dense_ia = Dense(256, activation='relu')(Flatten()(input_a))
+    # Parallel LNN A part
+    pooled_input_a = pool_layer(input_a)
+    dense_ia = Dense(256, activation='relu')(pooled_input_a)
 
-    # CNN B part
-    cnn1b = Conv1D(filters[0], kernel_sizes[0], padding='same', activation='relu')(input_b)
-    cnn2b = Conv1D(filters[1], kernel_sizes[1], padding='same', activation='relu')(input_b)
-    cnn3b = Conv1D(filters[2], kernel_sizes[2], padding='same', activation='relu')(input_b)
-    cnn4b = Conv1D(filters[3], kernel_sizes[3], padding='same', activation='relu')(input_b)
+    # CNN B part (similar to CNN A part, but using input_b and corresponding layers)
+    cnn1b = Conv1D(filters[0], kernel_sizes[0], padding='same')(input_b)
+    cnn2b = Conv1D(filters[1], kernel_sizes[1], padding='same')(input_b)
+    cnn3b = Conv1D(filters[2], kernel_sizes[2], padding='same')(input_b)
+    cnn4b = Conv1D(filters[3], kernel_sizes[3], padding='same')(input_b)
 
-    merged_cnn_b = concatenate([cnn1b, cnn2b, cnn3b, cnn4b], axis=-1)
+    merged_cnn_b = Concatenate(axis=-1)([cnn1b, cnn2b, cnn3b, cnn4b])
     merged_cnn_b = BatchNormalization()(merged_cnn_b)
+    merged_cnn_b = relu(merged_cnn_b)
     merged_cnn_b = Dropout(dos[0])(merged_cnn_b)
-
-    cnn5b = Conv1D(100, kernel_sizes[4], padding='same', activation='relu')(merged_cnn_b)
+    cnn5b = Conv1D(100, kernel_sizes[4], padding='same')(merged_cnn_b)
     cnn5b = BatchNormalization()(cnn5b)
-    cnn5b = MaxPooling1D(pool_size=2)(cnn5b)
-    cnn5b = Flatten()(cnn5b)
+    cnn5b = relu(cnn5b)
+    pooled_cnn5b = pool_layer(cnn5b)
 
-    # Parallel Linear Neural Network (LNN) B part
-    dense_ib = Dense(256, activation='relu')(Flatten()(input_b))
+    # Parallel LNN B part (similar to LNN A part, but using input_b and corresponding layers)
+    pooled_input_b = pool_layer(input_b)
+    dense_ib = Dense(256, activation='relu')(pooled_input_b)
 
     # Combined part
-    merged = concatenate([cnn5a, dense_ia, cnn5b, dense_ib], axis=-1)
+    merged = Concatenate(axis=-1)([pooled_cnn5a, dense_ia, pooled_cnn5b, dense_ib])
     merged = Dropout(dos[1])(merged)
-    output_layer = Dense(1, activation='sigmoid')(merged)
+    output_layer = Dense(1, activation='linear')(merged)  # Assuming linear output; adjust as needed
 
     model = Model(inputs=[input_a, input_b], outputs=output_layer)
-    model.compile(optimizer='adam', loss='binary_crossentropy')
-
+    model.compile(loss = 'binary_crossentropy', optimizer = 'adam')
+    print(model.summary())
     return model
 
 def catelmo_model(inputA,inputB):
-    
+
     x = Dense(2048,kernel_initializer = 'he_uniform')(inputA)
     x = BatchNormalization()(x)
     x = Dropout(0.3)(x)
@@ -266,8 +272,9 @@ def catelmo_model(inputA,inputB):
     y = Dropout(0.3)(y)
     y = tf.nn.silu(y)
     y = Model(inputs=inputB, outputs=y)
-#     combined = concatenate([x.output, y.output, abs(subtract(x.output,y.output))])
-    combined = concatenate([x.output, y.output])
+#     combined = Concatenate([x.output, y.output, abs(subtract(x.output,y.output))])
+    concatenation_layer = Concatenate()
+    combined = concatenation_layer([x.output, y.output])
     
     z = Dense(1024)(combined)
     z = BatchNormalization()(z)
@@ -276,17 +283,19 @@ def catelmo_model(inputA,inputB):
     z = Dense(1, activation='sigmoid')(z)
     model = Model(inputs=[x.input, y.input], outputs=z)
     model.compile(loss = 'binary_crossentropy', optimizer = 'adam')
-    model.summary()
+    print(model.summary())
     return model
     
 def train_(embedding_name,X1_train, X2_train, y_train, X1_test, X2_test, y_test,useCNN=False):
     # define two sets of inputs
-    inputA = Input(shape=(len(X1_train[0]),))
-    inputB = Input(shape=(len(X2_train[0]),))
     if useCNN:
+        inputA = Input(shape=(len(X1_train[0]),1,))
+        inputB = Input(shape=(len(X2_train[0]),1,))
         model = create_cnn3ab_model(inputA,inputB)
         model_name = 'TCRConv'
     else:
+        inputA = Input(shape=(len(X1_train[0]),))
+        inputB = Input(shape=(len(X2_train[0]),))
         model = catelmo_model(inputA,inputB)
         model_name = 'catELMo_4_layers_1024'
     ## model fit
@@ -348,4 +357,4 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--use_cnn',action='store_true', default=False)
     args = parser.parse_args()
-    main(args.embedding, args.split, args.fraction, args.seed, args.gpu.args.use_cnn)
+    main(args.embedding, args.split, args.fraction, args.seed, args.gpu, args.use_cnn)
